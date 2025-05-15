@@ -32,6 +32,13 @@ int main(int argc, char* argv[]) {
         return one();
     }
 
+    std::string mutexName = "output";
+    HANDLE mutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, mutexName.c_str());
+    if (mutex == NULL) {
+        std::cout << "Cannot open mutex: " << GetLastError() << '\n';
+        return one();
+    }
+
     SetEvent(event);
 
     while (true)
@@ -46,9 +53,19 @@ int main(int argc, char* argv[]) {
             std::cout << "enter message: ";
             std::string message;
             std::cin >> message;
+            auto w = WaitForSingleObject(mutex, INFINITE);
+            if (w == WAIT_FAILED) {
+                std::cout << "Cannot wait: " << GetLastError() << '\n';
+                return one();
+            }
             file.seekp(0, std::ios::end);
             file << message << '\n';
             file.flush();
+            auto r = ReleaseMutex(mutex);
+            if (!r) {
+                std::cout << "Cannot release mutex: " << GetLastError() << '\n';
+                return one();
+            }
             
         }
         else {

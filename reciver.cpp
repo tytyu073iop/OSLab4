@@ -48,6 +48,9 @@ int main() {
 	HANDLE* events = new HANDLE[amountOfSenders];
 	PROCESS_INFORMATION* processes = new PROCESS_INFORMATION[amountOfSenders];
     STARTUPINFO* sis = new STARTUPINFO[amountOfSenders];
+	std::string eventName = "SenderReady";
+	std::string mutexName = "output";
+	HANDLE mutex = CreateMutex(NULL, FALSE, mutexName.c_str());
 
 	for (size_t i = 0; i < amountOfSenders; i++)
 	{
@@ -85,12 +88,22 @@ int main() {
 		}
 		else if (whatToDo == "r") {
 			file.clear();
+			auto w = WaitForSingleObject(mutex, INFINITE);
+            if (w == WAIT_FAILED) {
+                std::cout << "Cannot wait: " << GetLastError() << '\n';
+                return 1;
+            }
 			//	file.seekg(file.tellg());  // Stay at current position
 			std::string line;
 			while (std::getline(file, line)) 
 			{
 				std::cout << "message: " << line << '\n';
 			}
+			auto r = ReleaseMutex(mutex);
+            if (!r) {
+                std::cout << "Cannot release mutex: " << GetLastError() << '\n';
+                return 1;
+            }
 		}
 		else {
 			std::cout << "wrong message. Repeating.\n";
@@ -100,6 +113,15 @@ int main() {
 	// do process exiting
 	for (size_t i = 0; i < amountOfSenders; i++)
 	{
+		if (!TerminateProcess(processes[i].hProcess, 0)) {
+			std::cout << "Couldn't stop process, error: " << i << ' ' << GetLastError() << '\n';
+		}
+		if (!CloseHandle(processes[i].hThread)) {
+			std::cout << "Couldn't close thread handle, error: " << i << ' ' << GetLastError() << '\n';
+		}
+		if (!CloseHandle(processes[i].hProcess)) {
+			std::cout << "Couldn't close process handle, error: " << i << ' ' << GetLastError() << '\n';
+		}
 		// there should be cleanup
 	}
 	

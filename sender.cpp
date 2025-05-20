@@ -32,10 +32,22 @@ int main(int argc, char* argv[]) {
         return one();
     }
 
+    HANDLE eventBoxIsNotFull = OpenEvent(EVENT_ALL_ACCESS, FALSE, "BoxIsNotFull");
+    if (event == NULL) {
+        std::cout << "Error creating event BoxIsFull: " << GetLastError() << '\n';
+        return one();
+    }
+
     std::string mutexName = "output";
     HANDLE mutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, mutexName.c_str());
     if (mutex == NULL) {
         std::cout << "Cannot open mutex: " << GetLastError() << '\n';
+        return one();
+    }
+
+    HANDLE avaliableMails = OpenSemaphore(SEMAPHORE_MODIFY_STATE, TRUE, "boxSemaphore");
+    if (avaliableMails == NULL) {
+        std::cerr << "Cannot open semaphore: " << GetLastError() << '\n';
         return one();
     }
 
@@ -50,14 +62,33 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         else if (whatToDo == "s") {
+
             std::cout << "enter message: ";
             std::string message;
             std::cin >> message;
-            auto w = WaitForSingleObject(mutex, INFINITE);
-            if (w == WAIT_FAILED) {
-                std::cout << "Cannot wait: " << GetLastError() << '\n';
-                return one();
+            bool needToWait = false;
+            if (!ReleaseSemaphore(avaliableMails, 1, NULL)) {
+                if (GetLastError() == ERROR_TOO_MANY_POSTS) {
+                    if(!ResetEvent(eventBoxIsNotFull)) {
+                        std::cerr << "Cannot reset eventBoxIsNotFull: " << GetLastError() << '\n';
+                    }
+                    std::cout << "Box is full. Message will be sent and program will continue after message box will be avaliable\n";
+                    needToWait = true;
+                }
             }
+
+            DWORD w;
+            if (needToWait) {
+                HANDLE* arr = new HANDLE[]{mutex, eventBoxIsNotFull};
+                w = WaitForMultipleObjects(2, arr, TRUE, INFINITE);
+                if (!ReleaseSemaphore(avaliableMails, 1, NULL)) {
+                    std::cerr << "cannot release semaphore inside need to wait: " << GetLastError() << '\n';
+                }
+                delete[] arr;
+            } else {
+                w = WaitForSingleObject(mutex, INFINITE);
+            }
+            std::cout << "WAIT COMPLETED\n";
             file.seekp(0, std::ios::end);
             file << message << '\n';
             file.flush();
@@ -66,6 +97,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "Cannot release mutex: " << GetLastError() << '\n';
                 return one();
             }
+            
             
         }
         else {

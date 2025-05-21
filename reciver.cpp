@@ -3,6 +3,7 @@
 #include <fstream>
 #include <string>
 #include <format>
+#include "addons.h"
 
 // edit max amount of messages, wait if empty and filled
 
@@ -114,6 +115,7 @@ int main() {
 		}
 		else if (whatToDo == "r") {
 			file.clear();
+			file.seekg(0);
 			HANDLE* arr = new HANDLE[]{mutex, avaliableMails};
 			auto w = WaitForMultipleObjects(2, arr, TRUE, INFINITE);
 			std::string line;
@@ -122,6 +124,7 @@ int main() {
 			} else {
 				std::cout << "message: " << line << '\n';
 			}
+			removeFirstLine(name);
 			auto r = ReleaseMutex(mutex);
 			if(!SetEvent(eventBoxIsNotFull)) {
 				std::cerr << "cannot set eventBoxIsNotFull\n";
